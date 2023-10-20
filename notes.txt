@@ -1,2 +1,31 @@
 When an LED’s column wire is set to positive and the row wire is set to 0 the LED will turn
 on.
+
+void loop () {
+  Serial.print("iteration"); 
+  Serial.println();
+  //the row # 1 and col # 1 of the LEDs turn on 
+  digitalWrite(row1, HIGH); 
+  digitalWrite(row2, LOW); 
+  digitalWrite(row3, LOW); 
+  digitalWrite(row4, LOW); 
+  digitalWrite(row5, LOW); 
+  digitalWrite(row6, LOW); 
+  digitalWrite(row7, LOW); 
+  digitalWrite(row8, LOW); 
+  digitalWrite(col1, LOW); 
+  digitalWrite(col2, HIGH); 
+  digitalWrite(col3, HIGH); 
+  digitalWrite(col4, HIGH); 
+  digitalWrite(col5, HIGH); 
+  digitalWrite(col6, HIGH); 
+  digitalWrite(col7, HIGH); 
+  digitalWrite(col8, HIGH); 
+  delay(1000); 
+  
+  //turn off all  
+  blank_screen();
+
+  
+  delay(1000); 
+}

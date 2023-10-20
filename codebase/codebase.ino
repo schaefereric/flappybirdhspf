@@ -24,6 +24,8 @@ byte data_ascii[][display_array_size] = {
   data_ascii_I,
 };
 //the pin to control ROW
+const int row[] = {2,3,4,5,17,16,15,14};
+/*
 const int row1 = 2; // the number of the row pin 24
 const int row2 = 3; // the number of the row pin 23
 const int row3 = 4; // the number of the row pin 22
@@ -32,7 +34,10 @@ const int row5 = 17; // the number of the row pin 4
 const int row6 = 16; // the number of the row pin 3
 const int row7 = 15; // the number of the row pin 2
 const int row8 = 14; // the number of the row pin 1
+*/
 //the pin to control COl
+const int col[] = {6,7,8,9,10,11,12,13};
+/*
 const int col1 = 6; // the number of the col pin 20
 const int col2 = 7; // the number of the col pin 19
 const int col3 = 8; // the number of the col pin 18
@@ -41,10 +46,28 @@ const int col5 = 10; // the number of the col pin 16
 const int col6 = 11; // the number of the col pin 15
 const int col7 = 12; // the number of the col pin 14
 const int col8 = 13; // the number of the col pin 13
+*/
+
+void turnOn(int input_row, int input_col) {
+  digitalWrite(row[input_row], HIGH);
+  digitalWrite(col[input_col], LOW);
+}
+
+void turnOff(int input_row, int input_col) {
+  digitalWrite(row[input_row], LOW);
+  digitalWrite(col[input_col], HIGH);
+}
+
 
 void blank_screen() {
+  /*
   for (int i=2; i<18; i++) { 
     digitalWrite(i, LOW);
+  }*/
+
+  for (int i = 0; i <= 7; i++) { 
+    digitalWrite(row[i], LOW);
+    digitalWrite(col[i], HIGH);
   }
 }
 
@@ -62,32 +85,23 @@ void setup () {
   for(i=2;i<18;i++) {
     digitalWrite(i, LOW);
   }
+
+  blank_screen();
 }
 
 void loop () {
   Serial.print("iteration"); 
-  //the row # 1 and col # 1 of the LEDs turn on 
-  digitalWrite(row1, HIGH); 
-  digitalWrite(row2, LOW); 
-  digitalWrite(row3, LOW); 
-  digitalWrite(row4, LOW); 
-  digitalWrite(row5, LOW); 
-  digitalWrite(row6, LOW); 
-  digitalWrite(row7, LOW); 
-  digitalWrite(row8, LOW); 
-  digitalWrite(col1, LOW); 
-  digitalWrite(col2, HIGH); 
-  digitalWrite(col3, HIGH); 
-  digitalWrite(col4, HIGH); 
-  digitalWrite(col5, HIGH); 
-  digitalWrite(col6, HIGH); 
-  digitalWrite(col7, HIGH); 
-  digitalWrite(col8, HIGH); 
+  Serial.println();
+  
+  turnOn(0,0);
+  //digitalWrite(row[0], HIGH);
+  //digitalWrite(col[0], LOW);
+
   delay(1000); 
   
   //turn off all  
-  blank_screen();
-
+  //blank_screen();
+  turnOff(0,0);
   
   delay(1000); 
 }
