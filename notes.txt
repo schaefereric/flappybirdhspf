@@ -1,0 +1,2 @@
+When an LED’s column wire is set to positive and the row wire is set to 0 the LED will turn
+on.
