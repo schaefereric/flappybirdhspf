@@ -1,4 +1,5 @@
 #include <ArduinoSTL.h>
+#include <list>
 
 #define display_array_size 8
 // ascii 8x8 dot font
@@ -58,6 +59,9 @@ void blank_screen();
 
 // Global Variables
 String incomingString = String("empty");
+
+#define buttonpinA 18
+#define buttonpinB 19
 
 int buttonState0 = 0; // Button A
 int buttonState1 = 0; // Button B
@@ -123,36 +127,36 @@ struct dot {
     } 
   }
 
-  void moveDown() {
-    if (this->row == 7) {return;}            // If maximum reached, do nothing
+  void move(shiftOptions option, int distance) {
+    switch (option) {
+    case down : 
+      //if (this->row == 7) {return;}                // If maximum reached, do nothing
+      turnOff(this->row, this->col);                // Turn off current dot
+      this->row = this->row + distance;            // Increment row
+      this->drawDot(false);                       // Draw new dot
+      break;
+    
+    case up:
+      //if (this->row == 0) {return;}            // If maximum reached, do nothing
+      turnOff(this->row, this->col);            // Turn off current dot
+      this->row = this->row - distance;        // Increment row
+      this->drawDot(false);                   // Draw new dot
+      break;
 
-    turnOff(this->row, this->col);         // Turn off current dot
-    this->row = this->row + 1;            // Increment row
-    this->drawDot(false);             // Draw new dot
-  }
+    case left:
+      //if (this->col == 0) {return;}            // If maximum reached, do nothing
+      turnOff(this->row, this->col);            // Turn off current dot
+      this->col = this->col - distance;        // Increment row
+      this->drawDot(false);                   // Draw new dot
+      break;
 
-  void moveUp() {
-    if (this->row == 0) {return;}            // If maximum reached, do nothing
-
-    turnOff(this->row, this->col);         // Turn off current dot
-    this->row = this->row - 1;            // Increment row
-    this->drawDot(false);             // Draw new dot
-  }
-
-  void moveLeft() {
-    if (this->col == 0) {return;}            // If maximum reached, do nothing
-
-    turnOff(this->row, this->col);         // Turn off current dot
-    this->col = this->col - 1;            // Increment row
-    this->drawDot(false);             // Draw new dot
-  }
-
-  void moveRight() {
-    if (this->col == 7) {return;}            // If maximum reached, do nothing
-
-    turnOff(this->row, this->col);         // Turn off current dot
-    this->col = this->col + 1;            // Increment row
-    this->drawDot(false);             // Draw new dot
+    case right:
+      //if (this->col == 7) {return;}            // If maximum reached, do nothing
+      turnOff(this->row, this->col);            // Turn off current dot
+      this->col = this->col + distance;        // Increment row
+      this->drawDot(false);                   // Draw new dot
+      break;
+    }
   }
 };
 
@@ -192,7 +196,99 @@ struct pattern {
     }
   }
 
+  virtual void move(shiftOptions option, int distance) {
+    for (auto & i : dotvec) {
+      i.move(option, distance);
+    }
+  }
+
 };
+
+struct pillar : pattern {
+  int spawnColumn;          // Column where the pillar appears 
+  int holeSize;             // Size of Hole (vertical distance between pillars)
+  int holeRow;              // Row where the hole begins
+
+  pillar(int iHoleSize = 1, int iSpawnColumn = 7) {
+    randomSeed(analogRead(5));
+
+    if (iHoleSize == 1) {this->holeSize = random(2,6);}        // Random hole size between 3 and 5
+    else                {this->holeSize = iHoleSize;}
+
+    this->holeRow = random(1, 7 - this->holeSize);        // Place hole randomly between pillars (with 1 dot outline)
+    this->spawnColumn = iSpawnColumn;
+
+    int line[8] = {1,1,1,1,1,1,1,1};
+    for (int i = 0; i < this->holeSize; i++) {
+      line[holeRow + i] = 0;
+    }
+
+    for (int i = 0; i < 8; i++) {
+      if (line[i] == 1) {
+        pushDot(i, this->spawnColumn);
+      }
+    }
+
+  }
+};
+
+struct pillarframe {
+  std::list<pillar> pillarList;
+  //std::initializer_list<pillar> pillarList;
+  int horizontalDistance;           // Distance between Pillars
+
+  pillarframe () {
+    pillarList.push_back((struct pillar) {});
+    this->horizontalDistance = 3;
+  }
+
+  pillarframe (int iHorizontalDistance) {
+    pillarList.push_back((struct pillar) {});
+    this->horizontalDistance = iHorizontalDistance;
+  }
+
+  void drawFrame(bool blankScreen) {
+    if (blankScreen) {blank_screen();}
+
+    for (auto i : pillarList) {
+      i.drawPattern(false);
+    }
+  }
+
+  void hideFrame() {
+    for (auto i : pillarList) {
+      i.hidePattern();
+    }
+  }
+
+  void spawnPillar() {
+    pillarList.push_back((struct pillar) {});
+  }
+
+  void checkPillars() {
+    if (pillarList.front().dotvec[0].col < 0 ) {                                // Check if left most pillar is out of bounds
+      pillarList.pop_front();                                                   // If so, despawn
+    }
+
+    if (pillarList.back().dotvec[0].col <= (7 - this->horizontalDistance)) {    // If horizontalDistance has been reached,
+      spawnPillar();                                                            // spawn new pillar
+    }
+  }
+
+  void shift(shiftOptions option, int distance) {
+    for (auto i : pillarList) {
+      i.shift(option, distance);
+    }
+  }
+
+  void scroll(shiftOptions option, int distance) {
+    shift(option, distance);
+    checkPillars();
+    drawFrame(true);  
+  }
+
+};
+
 
 // Global Drawing Functions
 void turnOn(int input_row, int input_col) {
@@ -219,6 +315,8 @@ void blank_screen() {
 
 dot dot1(3,3);
 pattern p1(0,3);
+pillar pillar1;
+pillarframe pf1;
 
 void setup () {
   // Setup Serial Communication
@@ -237,17 +335,15 @@ void setup () {
     digitalWrite(i, LOW);
   }
 
+  // Initialize Button A & B
+  pinMode(buttonpinA, INPUT);
+  pinMode(buttonpinB, INPUT);
+
   blank_screen();
 
-  // Initialize Button A & B
-  pinMode(A4, INPUT);
-  pinMode(A5, INPUT);
+  
 
-  dot1.drawDot(true);
-
-  p1.pushDot(1, 3);
-  p1.pushDot(2, 3);
-  p1.drawPattern(true);
+  pf1.drawFrame(true);
 
 }
 
@@ -255,7 +351,7 @@ void setup () {
 
 void loop () {
   
-  // Read and Store Serial Input
+  // Serial Communication
   if (Serial.available() > 0) {
     incomingString = Serial.readString();
 
@@ -279,33 +375,35 @@ void loop () {
   }
 
   // Read Buttons
-  buttonState0 = digitalRead(A4);
-  buttonState1 = digitalRead(A5);
+  buttonState0 = digitalRead(buttonpinA);
+  buttonState1 = digitalRead(buttonpinB);
   
   if (buttonState0 == HIGH) {
-    p1.shift(down, 1);
-    p1.drawPattern(true);
+    pf1.scroll(left, 1);
 
     while (buttonState0 == HIGH) {
-      buttonState0 = digitalRead(A4);
+      buttonState0 = digitalRead(buttonpinA);
       Serial.println("holding button A");
     }
   }
 
   if (buttonState1 == HIGH) {
-    p1.shift(up, 1);
-    p1.drawPattern(true);
+    pf1.scroll(right, 1);
 
+    /*
+    Serial.print("holesize: ");
+    Serial.print(pillar1.holeSize);
+    Serial.print("  holerow: ");
+    Serial.print(pillar1.holeRow);
+    Serial.print("  random number: ");
+    Serial.print(random(2,6));
+    Serial.println();
+    */
     while (buttonState1 == HIGH) {
-      buttonState1 = digitalRead(A5);
-      Serial.println("holding button B");
+      buttonState1 = digitalRead(buttonpinB);
+      //Serial.println("holding button B");
     }
   }
 
   
-
-  
-
-  
-
 }
