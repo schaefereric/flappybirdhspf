@@ -1,3 +1,5 @@
+#include <ArduinoSTL.h>
+
 #define display_array_size 8
 // ascii 8x8 dot font
 #define data_null 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // null char
@@ -24,19 +26,6 @@ byte data_ascii[][display_array_size] = {
   data_ascii_I,
 };
 
-// Forward Declarations
-void turnOn(int input_row, int input_col);
-void turnOff(int input_row, int input_col);
-void blank_screen();
-
-//uint32_t incomingByte = 255;
-
-String incomingString = String("empty");
-
-int buttonState0 = 0; // Button A
-int buttonState1 = 0; // Button B
-
-
 //the pin to control ROW
 const int row[] = {2,3,4,5,17,16,15,14};
 /*
@@ -62,32 +51,76 @@ const int col7 = 12; // the number of the col pin 14
 const int col8 = 13; // the number of the col pin 13
 */
 
-struct cursor {
+// Forward Declarations
+void turnOn(int input_row, int input_col);
+void turnOff(int input_row, int input_col);
+void blank_screen();
+
+// Global Variables
+String incomingString = String("empty");
+
+int buttonState0 = 0; // Button A
+int buttonState1 = 0; // Button B
+
+enum shiftOptions {up, down, left, right};
+
+
+
+struct dot {
+  // Attributes
   int row;
   int col;
 
-  cursor () {
+  // Constructors
+  dot () {
     this->row = 0;
     this->col = 0;
   }
-  cursor (int input_row, int input_col) {
+  dot (int input_row, int input_col) {
     this->row = input_row;
     this->col = input_col;
   }
 
-  void setCursor(int input_row, int input_col) {
+  // Methods
+  void setDot(int input_row, int input_col) {
     this->row = input_row;
     this->col = input_col;
   }
 
-  void drawCursor(bool blankScreen) {
+  void drawDot(bool blankScreen) {
     if (blankScreen) {blank_screen();}
 
     turnOn(this->row, this->col);
   }
 
-  void hideCursor() {
+  void hideDot() {
     turnOff(this->row, this->col);
+  }
+
+  void shift(shiftOptions option, int distance) {
+    switch (option) {
+      case up: 
+        //if (this->row == 0) {return;}
+        this->row = this->row - distance;
+        break;
+
+      case down:
+        //if (this->row == 7) {return;}
+        this->row = this->row + distance;
+        break;
+
+      case left:
+        //if (this->col == 0) {return;}
+        this->col = this->col - distance;
+        break;
+
+      case right:
+        //if (this->col == 7) {return;}
+        this->col = this->col + distance;
+        break;
+
+      default: break;
+    } 
   }
 
   void moveDown() {
@@ -95,7 +128,7 @@ struct cursor {
 
     turnOff(this->row, this->col);         // Turn off current dot
     this->row = this->row + 1;            // Increment row
-    this->drawCursor(false);             // Draw new dot
+    this->drawDot(false);             // Draw new dot
   }
 
   void moveUp() {
@@ -103,7 +136,7 @@ struct cursor {
 
     turnOff(this->row, this->col);         // Turn off current dot
     this->row = this->row - 1;            // Increment row
-    this->drawCursor(false);             // Draw new dot
+    this->drawDot(false);             // Draw new dot
   }
 
   void moveLeft() {
@@ -111,7 +144,7 @@ struct cursor {
 
     turnOff(this->row, this->col);         // Turn off current dot
     this->col = this->col - 1;            // Increment row
-    this->drawCursor(false);             // Draw new dot
+    this->drawDot(false);             // Draw new dot
   }
 
   void moveRight() {
@@ -119,12 +152,49 @@ struct cursor {
 
     turnOff(this->row, this->col);         // Turn off current dot
     this->col = this->col + 1;            // Increment row
-    this->drawCursor(false);             // Draw new dot
+    this->drawDot(false);             // Draw new dot
   }
 };
 
+struct pattern {
+  std::vector<dot> dotvec;
 
+  pattern () {}
+  pattern (int input_row, int input_col) {
+    dotvec.push_back((struct dot) {.row = input_row, .col = input_col});
+  }
 
+  void pushDot(int input_row, int input_col) {
+    dotvec.push_back((struct dot) {.row = input_row, .col = input_col});
+  }
+
+  void popDot() {
+    dotvec.pop_back();
+  }
+
+  void drawPattern(bool blankScreen) {
+    if (blankScreen) {blank_screen();}
+
+    for (auto & i : dotvec) {
+      i.drawDot(false);
+    }
+  }
+
+  void hidePattern() {
+    for (auto & i : dotvec) {
+      i.hideDot();
+    }
+  }
+
+  virtual void shift(shiftOptions option, int distance) {
+    for (auto & i : dotvec) {
+      i.shift(option, distance);
+    }
+  }
+
+};
+
+// Global Drawing Functions
 void turnOn(int input_row, int input_col) {
   digitalWrite(row[input_row], HIGH);
   digitalWrite(col[input_col], LOW);
@@ -147,7 +217,8 @@ void blank_screen() {
   }
 }
 
-
+dot dot1(3,3);
+pattern p1(0,3);
 
 void setup () {
   // Setup Serial Communication
@@ -171,9 +242,16 @@ void setup () {
   // Initialize Button A & B
   pinMode(A4, INPUT);
   pinMode(A5, INPUT);
+
+  dot1.drawDot(true);
+
+  p1.pushDot(1, 3);
+  p1.pushDot(2, 3);
+  p1.drawPattern(true);
+
 }
 
-cursor cursor1(0,0);
+
 
 void loop () {
   
@@ -185,6 +263,18 @@ void loop () {
       // Feedback
       Serial.print("Received: ");
       Serial.println(incomingString);
+
+      if (incomingString == "tp") { // Traverse Pattern
+        for (auto i : p1.dotvec) {
+          Serial.print("row: ");
+          Serial.print(i.row);
+          Serial.print("  col: ");
+          Serial.print(i.col);
+          Serial.println();
+        }
+      }
+
+    incomingString = "empty";
     }
   }
 
@@ -193,8 +283,9 @@ void loop () {
   buttonState1 = digitalRead(A5);
   
   if (buttonState0 == HIGH) {
-    cursor1.moveDown();
-    
+    p1.shift(down, 1);
+    p1.drawPattern(true);
+
     while (buttonState0 == HIGH) {
       buttonState0 = digitalRead(A4);
       Serial.println("holding button A");
@@ -202,8 +293,8 @@ void loop () {
   }
 
   if (buttonState1 == HIGH) {
-    cursor1.moveUp();
-    Serial.println("resetting cursor");
+    p1.shift(up, 1);
+    p1.drawPattern(true);
 
     while (buttonState1 == HIGH) {
       buttonState1 = digitalRead(A5);
@@ -213,7 +304,7 @@ void loop () {
 
   
 
-  cursor1.drawCursor(true);
+  
 
   
 
