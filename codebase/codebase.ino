@@ -23,6 +23,20 @@ byte data_ascii[][display_array_size] = {
   data_ascii_H,
   data_ascii_I,
 };
+
+// Forward Declarations
+void turnOn(int input_row, int input_col);
+void turnOff(int input_row, int input_col);
+void blank_screen();
+
+//uint32_t incomingByte = 255;
+
+String incomingString = String("empty");
+
+int buttonState0 = 0; // Button A
+int buttonState1 = 0; // Button B
+
+
 //the pin to control ROW
 const int row[] = {2,3,4,5,17,16,15,14};
 /*
@@ -48,6 +62,69 @@ const int col7 = 12; // the number of the col pin 14
 const int col8 = 13; // the number of the col pin 13
 */
 
+struct cursor {
+  int row;
+  int col;
+
+  cursor () {
+    this->row = 0;
+    this->col = 0;
+  }
+  cursor (int input_row, int input_col) {
+    this->row = input_row;
+    this->col = input_col;
+  }
+
+  void setCursor(int input_row, int input_col) {
+    this->row = input_row;
+    this->col = input_col;
+  }
+
+  void drawCursor(bool blankScreen) {
+    if (blankScreen) {blank_screen();}
+
+    turnOn(this->row, this->col);
+  }
+
+  void hideCursor() {
+    turnOff(this->row, this->col);
+  }
+
+  void moveDown() {
+    if (this->row == 7) {return;}            // If maximum reached, do nothing
+
+    turnOff(this->row, this->col);         // Turn off current dot
+    this->row = this->row + 1;            // Increment row
+    this->drawCursor(false);             // Draw new dot
+  }
+
+  void moveUp() {
+    if (this->row == 0) {return;}            // If maximum reached, do nothing
+
+    turnOff(this->row, this->col);         // Turn off current dot
+    this->row = this->row - 1;            // Increment row
+    this->drawCursor(false);             // Draw new dot
+  }
+
+  void moveLeft() {
+    if (this->col == 0) {return;}            // If maximum reached, do nothing
+
+    turnOff(this->row, this->col);         // Turn off current dot
+    this->col = this->col - 1;            // Increment row
+    this->drawCursor(false);             // Draw new dot
+  }
+
+  void moveRight() {
+    if (this->col == 7) {return;}            // If maximum reached, do nothing
+
+    turnOff(this->row, this->col);         // Turn off current dot
+    this->col = this->col + 1;            // Increment row
+    this->drawCursor(false);             // Draw new dot
+  }
+};
+
+
+
 void turnOn(int input_row, int input_col) {
   digitalWrite(row[input_row], HIGH);
   digitalWrite(col[input_col], LOW);
@@ -57,7 +134,6 @@ void turnOff(int input_row, int input_col) {
   digitalWrite(row[input_row], LOW);
   digitalWrite(col[input_col], HIGH);
 }
-
 
 void blank_screen() {
   /*
@@ -71,11 +147,15 @@ void blank_screen() {
   }
 }
 
+
+
 void setup () {
+  // Setup Serial Communication
   Serial.begin(9600);
-  Serial.print("lol");
+  Serial.print("setup");
   Serial.println();
 
+  // Initialize Pinouts
   int i = 0;
   for(i=2;i<18;i++)
   {
@@ -87,21 +167,54 @@ void setup () {
   }
 
   blank_screen();
+
+  // Initialize Button A & B
+  pinMode(A4, INPUT);
+  pinMode(A5, INPUT);
 }
 
-void loop () {
-  Serial.print("iteration"); 
-  Serial.println();
-  
-  turnOn(0,0);
-  //digitalWrite(row[0], HIGH);
-  //digitalWrite(col[0], LOW);
+cursor cursor1(0,0);
 
-  delay(1000); 
+void loop () {
   
-  //turn off all  
-  //blank_screen();
-  turnOff(0,0);
+  // Read and Store Serial Input
+  if (Serial.available() > 0) {
+    incomingString = Serial.readString();
+
+    if (incomingString != "empty") {
+      // Feedback
+      Serial.print("Received: ");
+      Serial.println(incomingString);
+    }
+  }
+
+  // Read Buttons
+  buttonState0 = digitalRead(A4);
+  buttonState1 = digitalRead(A5);
   
-  delay(1000); 
+  if (buttonState0 == HIGH) {
+    cursor1.moveDown();
+    
+    while (buttonState0 == HIGH) {
+      buttonState0 = digitalRead(A4);
+      Serial.println("holding button A");
+    }
+  }
+
+  if (buttonState1 == HIGH) {
+    cursor1.moveUp();
+    Serial.println("resetting cursor");
+
+    while (buttonState1 == HIGH) {
+      buttonState1 = digitalRead(A5);
+      Serial.println("holding button B");
+    }
+  }
+
+  
+
+  cursor1.drawCursor(true);
+
+  
+
 }
