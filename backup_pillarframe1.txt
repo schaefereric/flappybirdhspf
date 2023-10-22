@@ -40,9 +40,6 @@ const int row6 = 16; // the number of the row pin 3
 const int row7 = 15; // the number of the row pin 2
 const int row8 = 14; // the number of the row pin 1
 //the pin to control COl
-*/
-const int col[] = {6,7,8,9,10,11,12,13};
-/*
 const int col1 = 6; // the number of the col pin 20
 const int col2 = 7; // the number of the col pin 19
 const int col3 = 8; // the number of the col pin 18
@@ -107,8 +104,6 @@ struct dot {
     this->row = input_row;
     this->col = input_col;
   }
-
-  ~dot() {turnOff(this->row, this->col);}
 
   // Methods
   void setDot(int input_row, int input_col) {
@@ -186,22 +181,18 @@ struct dot {
 };
 
 struct pattern {
-  std::vector<dot *> dotvec;
-  //dot dots[64];
-  //int dots_used = 0;
+  std::vector<dot> dotvec;
 
   pattern () {}
   pattern (int input_row, int input_col) {
-    dotvec.push_back(new dot(input_row, input_col));
+    dotvec.push_back((struct dot) {.row = input_row, .col = input_col});
   }
-  ~pattern () {}
 
   void pushDot(int input_row, int input_col) {
-    dotvec.push_back(new dot(input_row, input_col));
+    dotvec.push_back((struct dot) {.row = input_row, .col = input_col});
   }
 
-  void popDot() {           // Pop last dot
-    delete dotvec.back();
+  void popDot() {
     dotvec.pop_back();
   }
 
@@ -209,132 +200,71 @@ struct pattern {
     if (blankScreen) {blank_screen();}
 
     for (auto & i : dotvec) {
-      i->drawDot(false);
+      i.drawDot(false);
     }
   }
 
   void hidePattern() {
     for (auto & i : dotvec) {
-      i->hideDot();
+      i.hideDot();
     }
   }
 
   virtual void shift(shiftOptions option, int distance) {
     for (auto & i : dotvec) {
-      i->shift(option, distance);
+      i.shift(option, distance);
     }
   }
 
   virtual void move(shiftOptions option, int distance) {
     for (auto & i : dotvec) {
-      i->move(option, distance);
-    }
-  }
-
-  void patternDebug() {
-    int counter = 0;
-    int address = 0;
-
-    Serial.print("dotvec size: "); Serial.println(dotvec.size());
-    for (auto i : dotvec) {
-      address = (int)i;
-      Serial.print("dot ");         Serial.print(counter); Serial.print(": ");
-      Serial.print("row: ");        Serial.print(i->row);
-      Serial.print("  col: ");      Serial.print(i->col);
-      Serial.println();
-      Serial.print("address: ");    Serial.print(address);
-      Serial.println();
-      counter++;
+      i.move(option, distance);
     }
   }
 
 };
 
 
-struct pillar : pattern {   // Double Pillar Implementation
+struct pillar : pattern {
   int spawnColumn;          // Column where the pillar appears 
   int holeSize;             // Size of Hole (vertical distance between pillars)
   int holeRow;              // Row where the hole begins
-  int upperPillar_height;
-  int lowerPillar_height;
 
-  pillar(shiftOptions direction, int iHoleSize = 1, int iSpawnColumn = 7) {
+  pillar(int iHoleSize = 1, int iSpawnColumn = 7) {
     randomSeed(analogRead(5));
+
+    if (iHoleSize == 1) {this->holeSize = random(2,6);}        // Random hole size between 3 and 5
+    else                {this->holeSize = iHoleSize;}
+
+    this->holeRow = random(1, 7 - this->holeSize);        // Place hole randomly between pillars (with 1 dot outline)
     this->spawnColumn = iSpawnColumn;
 
-    if (direction == down) {
-
+    int line[8] = {1,1,1,1,1,1,1,1};
+    for (int i = 0; i < this->holeSize; i++) {
+      line[holeRow + i] = 0;
     }
 
-    do { this->calculatePillarHeights(); }
-    while (this->upperPillar_height + this->lowerPillar_height > 5 );
-
-    //this->upperPillar_height = generateRandomPillarHeight();
-    //this->lowerPillar_height = generateRandomPillarHeight();
-
-    for (int i = 0; i < upperPillar_height; i++) {
-      this->pushDot(i, this->spawnColumn);
-    }
-
-    for (int i = 0; i < upperPillar_height; i++) {
-      this->pushDot(7 - i, this->spawnColumn);
+    for (int i = 0; i < 8; i++) {
+      if (line[i] == 1) {
+        pushDot(i, this->spawnColumn);
+      }
     }
 
   }
-  ~pillar () {}
-  void calculatePillarHeights(int minHeight = 1, int maxHeight = 6, int minDistance = 2) {
-    this->upperPillar_height = random(minHeight, maxHeight + 1);
-    this->lowerPillar_height = random(minHeight, maxHeight - minDistance + 1);
-  }
-
-  int generateRandomPillarHeight(int minHeight = 1, int maxHeight = 6) {
-    return random(minHeight, maxHeight + 1); // +1, damit die höchste Höhe inklusive ist
-  }
-
-  void randomizePillar() {
-    dotvec.clear();
-
-    this->upperPillar_height = generateRandomPillarHeight();
-    this->lowerPillar_height = generateRandomPillarHeight();
-
-    for (int i = 0; i < upperPillar_height; i++) {
-      this->pushDot(i, this->spawnColumn);
-    }
-
-    for (int i = 0; i < upperPillar_height; i++) {
-      this->pushDot(7 - i, this->spawnColumn);
-    }
-  }
-
-  void pillarDebug(bool alsoDebugPattern = false) {
-    Serial.print("upperpillarheight: ");
-    Serial.print(this->upperPillar_height);
-    Serial.print("  lowerpillarheight: ");
-    Serial.print(this->lowerPillar_height);
-    Serial.println();
-    Serial.print("random num:  ");
-    Serial.print(generateRandomPillarHeight());
-    Serial.println();
-    if (alsoDebugPattern = false) {
-      patternDebug();
-    }
-    Serial.println();
-  }
-  
-
 };
 
 struct pillarframe {
-  std::list<pillar *> pillarList;
+  std::list<pillar> pillarList;
+  //std::initializer_list<pillar> pillarList;
   int horizontalDistance;           // Distance between Pillars
 
   pillarframe () {
-    pillarList.push_back(new pillar());
+    pillarList.push_back((struct pillar) {});
     this->horizontalDistance = 3;
   }
 
   pillarframe (int iHorizontalDistance) {
-    pillarList.push_back(new pillar());
+    pillarList.push_back((struct pillar) {});
     this->horizontalDistance = iHorizontalDistance;
   }
 
@@ -342,34 +272,33 @@ struct pillarframe {
     if (blankScreen) {blank_screen();}
 
     for (auto & i : pillarList) {
-      i->drawPattern(false);
+      i.drawPattern(false);
     }
   }
 
   void hideFrame() {
     for (auto & i : pillarList) {
-      i->hidePattern();
+      i.hidePattern();
     }
   }
 
   void spawnPillar() {
-    pillarList.push_back(new pillar());
+    pillarList.push_back((struct pillar) {});
   }
 
   void checkPillars() {
-    if (pillarList.front()->dotvec[0]->col < 0 ) {                                // Check if left most pillar is out of bounds
-      delete pillarList.front();                                                 // Deallocate heap memory
+    if (pillarList.front().dotvec[0].col < 0 ) {                                // Check if left most pillar is out of bounds
       pillarList.pop_front();                                                   // If so, despawn
     }
 
-    if (pillarList.back()->dotvec[0]->col <= (7 - this->horizontalDistance)) {    // If horizontalDistance has been reached,
+    if (pillarList.back().dotvec[0].col <= (7 - this->horizontalDistance)) {    // If horizontalDistance has been reached,
       spawnPillar();                                                            // spawn new pillar
     }
   }
 
   void shift(shiftOptions option, int distance) {
     for (auto & i : pillarList) {
-      i->shift(option, distance);
+      i.shift(option, distance);
     }
   }
 
@@ -415,9 +344,7 @@ void setup () {
   blank_screen();
 
   
-  
-  
-  //pillar1.drawPattern(true);
+
   pf1.drawFrame(true);
 
 }
@@ -436,22 +363,15 @@ void loop () {
       Serial.print("Received: ");
       Serial.println(incomingString);
 
-      /*
-      for (auto i : pf1.pillarList) {
-        int address = (int)&i.holeRow;
-        Serial.println(address, HEX);
-      }
-      */
-
-      /* if (incomingString == "tp") { // Traverse Pattern
+      if (incomingString == "tp") { // Traverse Pattern
         for (auto i : p1.dotvec) {
           Serial.print("row: ");
-          Serial.print(i->row);
+          Serial.print(i.row);
           Serial.print("  col: ");
-          Serial.print(i->col);
+          Serial.print(i.col);
           Serial.println();
         }
-      } */
+      }
 
     incomingString = "empty";
     }
@@ -462,14 +382,9 @@ void loop () {
   buttonState1 = digitalRead(buttonpinB);
   
   if (buttonState0 == HIGH) {
-    //pillar1.move(left, 1);
-    //pf1.shift(left,1);
+    //pf1.shift(left, 1);
     //pf1.drawFrame(true);
     pf1.scroll(left, 1);
-
-    for (auto i : pf1.pillarList) {
-      i->patternDebug();
-    }
 
     while (buttonState0 == HIGH) {
       buttonState0 = digitalRead(buttonpinA);
@@ -478,16 +393,8 @@ void loop () {
   }
 
   if (buttonState1 == HIGH) {
-    //pillar1.move(right, 1);
-    //pf1.shift(right,1);
-    //pf1.drawFrame(true);
+    
     pf1.scroll(right, 1);
-    
-    
-    
-    for (auto i : pf1.pillarList) {
-      i->pillarDebug();
-    }
 
     /*
     Serial.print("holesize: ");
