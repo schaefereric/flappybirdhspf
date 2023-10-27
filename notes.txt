@@ -29,3 +29,27 @@ void loop () {
   
   delay(1000); 
 }
+
+
+- (setup) add pillar to queue
+- shift all pillars left
+- if right most pillar is far away enough to trigger hrzDistance => add new pillar to queue
+- if left most pillar is out of range => dequeue
+- hitbox detection
+- draw new frame
+
+new pillar concept
+- possibly allocate 8 pillars on the stack, then decide visibility, perhaps via bool
+- 
+
+----
+
+-bottom pillar: select random pillar height
+- bottom_pillar_height + holeSize = starting height of top pillar
+- somehow cutoff excess top pillar height
+
+
+// Der Array hat 10 Elemente mit jeweils 8 Bytes. Die erste Array Dimension steht fuer
+// einen ganzen Buchstaben bzw. ein ganzes Pattern. Mit der zweiten Dimension kann
+// man auf die einzelnen Bytes zu greifen, welche jeweils eine ganze Column des Patterns repraesentieren
+// Heisst: data_ascii[pattern][column]

@@ -1,10 +1,9 @@
 #include <ArduinoSTL.h>
 #include <list>
-#include <memory>
 
 #define display_array_size 8
-// ascii 8x8 dot font
-#define data_null 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // null char
+
+#define data_null    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 // null char
 #define data_ascii_A 0x02,0x0C,0x18,0x68,0x68,0x18,0x0C,0x02 /*"A",0*/
 #define data_ascii_B 0x00,0x7E,0x52,0x52,0x52,0x52,0x2C,0x00 /*"B",1*/
 #define data_ascii_C 0x00,0x3C,0x66,0x42,0x42,0x42,0x2C,0x00 /*"C",2*/
@@ -30,33 +29,8 @@ byte data_ascii[][display_array_size] = {
 
 //the pin to control ROW
 const int row[] = {2,3,4,5,17,16,15,14};
-/*
-const int row1 = 2; // the number of the row pin 24
-const int row2 = 3; // the number of the row pin 23
-const int row3 = 4; // the number of the row pin 22
-const int row4 = 5; // the number of the row pin 21
-const int row5 = 17; // the number of the row pin 4
-const int row6 = 16; // the number of the row pin 3
-const int row7 = 15; // the number of the row pin 2
-const int row8 = 14; // the number of the row pin 1
-//the pin to control COl
-*/
-const int col[] = {6,7,8,9,10,11,12,13};
-/*
-const int col1 = 6; // the number of the col pin 20
-const int col2 = 7; // the number of the col pin 19
-const int col3 = 8; // the number of the col pin 18
-const int col4 = 9; // the number of the col pin 17
-const int col5 = 10; // the number of the col pin 16
-const int col6 = 11; // the number of the col pin 15
-const int col7 = 12; // the number of the col pin 14
-const int col8 = 13; // the number of the col pin 13
-*/
 
-// Forward Declarations
-//void turnOn(int input_row, int input_col);
-//void turnOff(int input_row, int input_col);
-//void blank_screen();
+const int col[] = {6,7,8,9,10,11,12,13};
 
 // Global Drawing Functions
 void turnOn(int input_row, int input_col) {
@@ -91,6 +65,9 @@ int buttonState0 = 0; // Button A
 int buttonState1 = 0; // Button B
 
 enum shiftOptions {up, down, left, right};
+enum byteOrder {lsb, msb};
+
+byte B_byte[] = {data_ascii_B};
 
 
 struct dot {
@@ -231,11 +208,44 @@ struct pattern {
     }
   }
 
+  int importColumn(byte data, int column, byteOrder byteorder = msb) {
+    if (byteorder == msb) {
+      for (int row = 0; row < 8; row++) {             // MOST significant byte first
+        bool isBitSet = (data & (1 << 8 - 1 - row)) != 0;
+        
+        if (isBitSet) {
+          this->pushDot(row, column);
+        } 
+      }
+      return 1;
+    }
+
+    else if (byteorder == msb) {
+       for (int row = 0; row < 8; row++) {          // LEAST significant byte first
+        bool isBitSet = (data & (1 << row)) != 0;   // Die "1" wird "row"-mal nach links gebitshifted. Das Bit an der Stelle (restliches byte wird mit Nullen aufgefuellt)
+                                                    // wird dann mit dem Byte verundet. Wenn die gepruefte Stelle 0 ist, kommt 0 raus. Sonst ungleich 0.
+        if (isBitSet) {
+          this->pushDot(row, column);
+        } 
+      } 
+      return 1;
+    }
+
+    else {return 0;}
+  }
+
+  void importPattern(byte bytearray[8], byteOrder byteorder = lsb) {
+    for (int col = 0; col < 8; col++) {
+      importColumn(bytearray[col], col, byteorder);
+    }
+  }
+
   void patternDebug() {
     int counter = 0;
     int address = 0;
 
     Serial.print("dotvec size: "); Serial.println(dotvec.size());
+
     for (auto i : dotvec) {
       address = (int)i;
       Serial.print("dot ");         Serial.print(counter); Serial.print(": ");
@@ -246,6 +256,18 @@ struct pattern {
       Serial.println();
       counter++;
     }
+    /* for (auto i : dotvec) {
+      address = (int)i;
+
+      Serial.print("dot " + counter + ": ");        
+      Serial.print("row: " + i->row);
+      Serial.print("  col: " + i->col);
+      Serial.println();
+      Serial.print("address: " + address);
+      Serial.println();
+      counter++;
+    } */
+
   }
 
 };
@@ -258,7 +280,7 @@ struct pillar : pattern {   // Double Pillar Implementation
   int upperPillar_height;
   int lowerPillar_height;
 
-  pillar(shiftOptions direction, int iHoleSize = 1, int iSpawnColumn = 7) {
+  pillar(shiftOptions direction, int iHoleSize = 2, int iSpawnColumn = 7) {
     randomSeed(analogRead(5));
     this->spawnColumn = iSpawnColumn;
 
@@ -282,13 +304,14 @@ struct pillar : pattern {   // Double Pillar Implementation
 
   }
   ~pillar () {}
+
   void calculatePillarHeights(int minHeight = 1, int maxHeight = 6, int minDistance = 2) {
     this->upperPillar_height = random(minHeight, maxHeight + 1);
     this->lowerPillar_height = random(minHeight, maxHeight - minDistance + 1);
   }
 
   int generateRandomPillarHeight(int minHeight = 1, int maxHeight = 6) {
-    return random(minHeight, maxHeight + 1); // +1, damit die höchste Höhe inklusive ist
+    return random(minHeight, maxHeight); 
   }
 
   void randomizePillar() {
@@ -329,12 +352,12 @@ struct pillarframe {
   int horizontalDistance;           // Distance between Pillars
 
   pillarframe () {
-    pillarList.push_back(new pillar());
+    pillarList.push_back(new pillar(down));
     this->horizontalDistance = 3;
   }
 
   pillarframe (int iHorizontalDistance) {
-    pillarList.push_back(new pillar());
+    pillarList.push_back(new pillar(down));
     this->horizontalDistance = iHorizontalDistance;
   }
 
@@ -353,7 +376,7 @@ struct pillarframe {
   }
 
   void spawnPillar() {
-    pillarList.push_back(new pillar());
+    pillarList.push_back(new pillar(down));
   }
 
   void checkPillars() {
@@ -384,11 +407,11 @@ struct pillarframe {
 
 
 
-
+byte testbyte = 0x2;
 
 dot dot1(3,3);
-pattern p1(0,3);
-pillar pillar1;
+pattern p1;
+pillar pillar1(down);
 pillarframe pf1;
 
 void setup () {
@@ -418,7 +441,10 @@ void setup () {
   
   
   //pillar1.drawPattern(true);
-  pf1.drawFrame(true);
+
+  //p1.importColumn(testbyte, 7);
+  p1.importColumn(testbyte, 1);
+  p1.drawPattern(true);
 
 }
 
@@ -430,18 +456,10 @@ void loop () {
   // Serial Communication
   if (Serial.available() > 0) {
     incomingString = Serial.readString();
-
     if (incomingString != "empty") {
       // Feedback
       Serial.print("Received: ");
       Serial.println(incomingString);
-
-      /*
-      for (auto i : pf1.pillarList) {
-        int address = (int)&i.holeRow;
-        Serial.println(address, HEX);
-      }
-      */
 
       /* if (incomingString == "tp") { // Traverse Pattern
         for (auto i : p1.dotvec) {
@@ -465,12 +483,11 @@ void loop () {
     //pillar1.move(left, 1);
     //pf1.shift(left,1);
     //pf1.drawFrame(true);
-    pf1.scroll(left, 1);
+    //pf1.scroll(left, 1);
 
-    for (auto i : pf1.pillarList) {
-      i->patternDebug();
-    }
+    p1.patternDebug();
 
+    // Sticky Button
     while (buttonState0 == HIGH) {
       buttonState0 = digitalRead(buttonpinA);
       Serial.println("holding button A");
@@ -487,17 +504,9 @@ void loop () {
     
     for (auto i : pf1.pillarList) {
       i->pillarDebug();
-    }
+    } 
 
-    /*
-    Serial.print("holesize: ");
-    Serial.print(pillar1.holeSize);
-    Serial.print("  holerow: ");
-    Serial.print(pillar1.holeRow);
-    Serial.print("  random number: ");
-    Serial.print(random(2,6));
-    Serial.println();
-    */
+    // Sticky Button
     while (buttonState1 == HIGH) {
       buttonState1 = digitalRead(buttonpinB);
       Serial.println("holding button B");
