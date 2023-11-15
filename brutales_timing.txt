@@ -1,0 +1,18 @@
+Serial.println(millis());
+    tft.fillRect(14, 30, 100, 100, ST7735_MAGENTA);
+Serial.println(millis());
+
+Ergebnis: 13000, 13039
+Differenz: 39 Millisekunden (0,039s)
+
+-----
+
+int parameter = 4;
+Serial.println(millis());
+    for (int i = 1; i < 13; i++) {
+      tft.drawRect(14 + (parameter * i), 30 + (parameter * i), 100 - (parameter * 2 * i), 100 - (parameter * 2* i), ST7735_GREEN);
+    }
+Serial.println(millis());
+
+Ergebnis: 11639, 11652
+Differenz: 13 Millisekunden (0,013s)
