@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdio>
+#include "include/color.hpp"
 
 enum byteOrder {lsb, msb};
 bool field[8][8]; 
@@ -12,7 +13,7 @@ void drawField() {
 				std::cout << " O" ;
 			}
 			if (field[row][column] == true) {
-				std::cout << " X" ;
+				std::cout << dye::green(" X") ;
 			}
 		}
 		std::cout << std::endl;
@@ -78,8 +79,12 @@ int main() {
 	
 	clearField();
 	//importColumn(byte, 7, msb);
-	importColumnArray(bytearray_A, msb);
+	
+	clearField();
+	
+	importColumnArray(bytearray_B, msb);
 	drawField();
+	
 	
 	system("pause");
 	return 0;
