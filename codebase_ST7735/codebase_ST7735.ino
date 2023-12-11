@@ -270,30 +270,13 @@ struct pillars {
       this->corner.topLeft.set(ix, iy);
     }
 
-    void calculateCorners(pillar_directions iDirection) { 
-      switch (iDirection) {
-        case bottom: // topLeft is calculated in make_pillar()
-          corner.topRight.x = corner.topLeft.x + PILLAR_WIDTH;
-          corner.topRight.y = corner.topLeft.y;
-
-          corner.bottomLeft.x = corner.topLeft.x;
-          corner.bottomLeft.y = corner.topLeft.y + height;
-
-          corner.bottomRight.x = corner.topLeft.x + PILLAR_WIDTH;
-          corner.bottomRight.y = corner.topLeft.y + height;
-          break;
-        case top:
-
-        break;
-      }
+    void make_pillar_from_height(int iHeight, int x_coordinate, int y_offset) {
+      this->height = iHeight;
+      corner.topLeft.x = x_coordinate;
+      corner.topLeft.y = 128 - iHeight - y_offset;
     }
 
-    void make_pillar_bottom(int iHeight, int x_coordinate) {
-      this->height = iHeight;
-      this->direction = bottom;
-      corner.topLeft.x = x_coordinate;          // topLeft is generated here
-      corner.topLeft.y = 128 - iHeight;
-
+    void calculateCorners_topLeft() {
       corner.topRight.x = corner.topLeft.x + PILLAR_WIDTH;
       corner.topRight.y = corner.topLeft.y;
 
@@ -302,29 +285,34 @@ struct pillars {
 
       corner.bottomRight.x = corner.topLeft.x + PILLAR_WIDTH;
       corner.bottomRight.y = corner.topLeft.y + height;
+
     }
 
-    void make_pillar_top(int x_coordinate, int distance, vector2 given_topLeft, int given_height) {
+    /* Um zwei Pillar zu generieren muss erst der untere Pillar generiert werden
+     * Nötige Parameter: Random Height, Random Distance, X-Koordinate
+     * Der untere Pillar braucht nur die Height und X-Koordinate,
+     * der obere Pillar braucht die selbe Height, eine Distance und eine X-Koordinate
+     * Davon ausgehend generiert sich der obere Pillar eigenständig
+     */
+
+    void make_pillar_bottom(int iHeight, int x_coordinate) {
+      this->direction = bottom;
+
+      make_pillar_from_height(iHeight, x_coordinate, 0);
+      calculateCorners_topLeft();
+    }
+
+    void make_pillar_top(int iHeight_of_bottom, int x_coordinate, int distance) {
       this->direction = top;
-      // top topleft muss von bottom topleft abgelesen werden -> bottom zuerst spawnen
-      //corner.topLeft.x = given_topLeft.x;
-      corner.topLeft.x = x_coordinate;
-      corner.topLeft.y = given_topLeft.y;
+      // WAS IST DIE HEIGHT ???????
+      // HEIGHT-OBEN = 128 - distance - height
+      // y_offset = distance + height
 
-      corner.bottomLeft.x = corner.topLeft.x;
-      corner.bottomLeft.y = corner.topLeft.y + distance;
+      int upper_height = 128 - distance - iHeight_of_bottom;
+      int offset       = distance + iHeight_of_bottom;
 
-      corner.topLeft.y = 0;
-
-      corner.topRight.x = corner.topLeft.x + PILLAR_WIDTH;
-      corner.topRight.y = 0;
-
-      corner.bottomRight.x = corner.topRight.x;
-      corner.bottomRight.y = corner.bottomLeft.y;
-      
-
-      this->height = 128 - (distance + height);
-
+      make_pillar_from_height(upper_height, x_coordinate, offset);
+      calculateCorners_topLeft();
     }
 
     void draw() {
@@ -455,8 +443,8 @@ void setup() {
   //gameloop1.setLoop(true);
   //sp1.make_pillar(60, 100, bottom, 0);
   //sp1.draw();
-  sp_b.make_pillar_bottom(30, 80);
-  sp_t.make_pillar_top(40, 10, sp_b.corner.topLeft, 30);
+  sp_b.make_pillar_bottom(20, 80);
+  sp_t.make_pillar_top(20, 80, 40);
   sp_b.draw();
   sp_t.draw();
 }
