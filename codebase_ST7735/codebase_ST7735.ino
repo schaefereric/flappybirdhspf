@@ -39,6 +39,7 @@ https://www.greth.me/arduino-nano-mit-1-77-zoll-spi-tft-display-st7735-chipsatz/
 #include <SPI.h>             // SPI für die Kommunikation
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
+#include <ArduinoSTL.h>
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_PIN_CS, TFT_PIN_DC, TFT_PIN_RST);                       // vieeel viel schneller als mit anderer init
 //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_PIN_CS, TFT_PIN_DC, TFT_MOSI, TFT_SCLK, TFT_PIN_RST); // sau langsam
@@ -52,6 +53,12 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_PIN_CS, TFT_PIN_DC, TFT_PIN_RST);     
 #define erase_screen 1
 #define erase_square 2
 
+enum pillar_directions {bottom, top};
+#define PILLAR_WIDTH 20
+#define DISTANCE_BETWEEN_PILLARS 40
+#define BIRD_SIZE 15
+
+
 struct buttons_class {
   struct button {
     bool state;
@@ -62,6 +69,7 @@ struct buttons_class {
     unsigned long nDelay;
 
     button () {
+      //this->pin = iPin;
       this->digitalread = 1;
       this->state = false;
       this->counter = 0;
@@ -122,120 +130,15 @@ struct buttons_class {
 
 };
 
-struct bird_class {
-  double position;
-  double previous_position;
-  int g;
-  double maxSpeed;
-  double speed;
-  double speed_diff;
-  int xPos; 
-  bool runLoop;
-
-  bird_class() {
-    this->reset();
-  }
-
-  void applyPhysics() {
-    this->previous_position = this->position;
-
-    position = (position + (speed * speed_diff)) - (0.5 * this->g * speed_diff * speed_diff);
-    speed = speed + (this->g * speed_diff);
-  }
-  // speed diff koennte zeit sein
-  // siehe: senkrechter wurf nach oben
-
-  void flap() {
-    this->speed = -35.0;
-  }
-
-  int checkBoundaries() {
-    if (this->position >= 128) {
-      tft.setCursor(0, 20);
-      tft.setTextColor(ST77XX_RED);
-      tft.setTextSize(1);
-      tft.setTextWrap(true);
-      tft.print("Bird out of bounds!  (y-axis)");
-
-      this->position = 128;
-      return 0;
-    }
-    else if (this->position < 0) {
-      tft.setCursor(0, 20);
-      tft.setTextColor(ST77XX_RED);
-      tft.setTextSize(1);
-      tft.setTextWrap(true);
-      tft.print("Bird out of bounds!  (y-axis)");
-
-      this->position = 0;
-      return 0;
-    }
-    else return 1;
-  }
-
-  void draw(int eraseMethod) {                // refer for parameters to top of code
-    switch (eraseMethod) {
-    case do_not_erase:
-      break;
-
-    case erase_screen: 
-      tft.fillScreen(ST7735_BLACK);
-      break;
-
-    case erase_square:
-      tft.drawRect(xPos, previous_position, 15, 15, ST7735_BLACK);
-      break;
-
-    default:
-      break; 
-    }
-
-    tft.drawRect(xPos, position, 15, 15, ST7735_GREEN);
-  }
-
-  void reset() {
-    this->runLoop = false;
-
-    this->position          = 30.0;
-    this->previous_position = 0.0;
-    this->g                 = 20;          // default: 20
-    this->maxSpeed          = 20.0;        // default: 20.0
-    this->speed             = maxSpeed;
-    this->speed_diff        = 0.175;       // default: 0.05
-    this->xPos              = 50;
-  }
-
-  // void serialDebug() {
-  //   Serial.println("position " + this->position);
-  //   Serial.println("speed " + this->speed);
-  // }
-
-  void onScreenDebug() {
-    tft.setCursor(0, 0);
-    tft.setTextColor(ST7735_CYAN, ST7735_BLACK);
-    tft.setTextSize(1);
-    tft.setTextWrap(true);
-
-    tft.print("position ");
-    tft.println(this->position);
-    tft.print("speed ");
-    tft.println(this->speed);
-    //tft.print("test");
-  }
-
-};
-
 struct vector2 {
   int x;
   int y;
   vector2()               { this->x = 0;  this->y = 0; }
   vector2(int ix, int iy) { this->x = ix; this->y = iy; }
-  
+
   void set(int ix, int iy) { this->x = ix; this->y = iy; }
 };
 
-enum pillar_directions {bottom, top};
-int PILLAR_WIDTH = 20;
 
 struct corners {
   vector2 topLeft;
@@ -250,13 +153,109 @@ struct corners {
   }
 };
 
+
+struct bird_class {
+  //double position;
+  //double previous_position;
+  int g;
+  double maxSpeed;
+  double speed;
+  double speed_diff;
+  int xPos; 
+  corners corner;
+  vector2 previous_position;
+
+  bird_class() {
+    this->reset();
+  }
+
+  void applyPhysics() {
+    this->previous_position.y = this->corner.topLeft.y;
+
+    corner.topLeft.y = (corner.topLeft.y + (speed * speed_diff)) - (0.5 * this->g * speed_diff * speed_diff);
+    speed = speed + (this->g * speed_diff);
+
+    // Prevent bird from exceeding vertical border
+    if (corner.topLeft.y < 0) {
+      corner.topLeft.y = 0;
+    }
+
+    this->calculateCorners_topLeft();
+  }
+  // speed diff koennte zeit sein
+  // siehe: senkrechter wurf nach oben
+
+  void flap() {
+    this->speed = -27.0;
+  }
+
+
+  void draw(int eraseMethod) {                // refer for parameters to top of code
+    switch (eraseMethod) {
+    case do_not_erase:
+      break;
+
+    case erase_screen: 
+      tft.fillScreen(ST7735_BLACK);
+      break;
+
+    case erase_square:
+      tft.fillRect(previous_position.x, previous_position.y, BIRD_SIZE, BIRD_SIZE, ST7735_BLACK);
+      break;
+
+    default:
+      break; 
+    }
+
+    tft.fillRect(corner.topLeft.x, corner.topLeft.y, BIRD_SIZE, BIRD_SIZE, ST7735_YELLOW);
+  }
+
+  void reset() {
+    //this->position          = 30.0;
+    //this->previous_position = 0.0;
+    corner.topLeft.y = 30;                 // Relevant Parameter !!!
+    corner.topLeft.x = 30;
+    previous_position.y = 30;
+    previous_position.x = 30;
+
+    this->g                 = 20;          // default: 20
+    this->maxSpeed          = 20.0;        // default: 20.0
+    this->speed             = maxSpeed;
+    this->speed_diff        = 0.175;       // default: 0.05
+    //this->xPos              = 50;
+  }
+
+  void calculateCorners_topLeft() {
+    corner.topRight.x = corner.topLeft.x + BIRD_SIZE;
+    corner.topRight.y = corner.topLeft.y;
+
+    corner.bottomLeft.x = corner.topLeft.x;
+    corner.bottomLeft.y = corner.topLeft.y + BIRD_SIZE;
+
+    corner.bottomRight.x = corner.topLeft.x + BIRD_SIZE;
+    corner.bottomRight.y = corner.topLeft.y + BIRD_SIZE;
+  }
+
+  bool check_border_collision() {
+    // Returns true if border is hit
+    calculateCorners_topLeft();
+    if (corner.bottomLeft.y >= 128) {
+      return true;
+    }
+    else return false;
+  }
+
+};
+
+
 struct pillars {
 
   struct single_pillar {
     corners corner;
     pillar_directions direction;
     int height;
-    
+    vector2 previous_position;
+
     single_pillar () {
       setTopLeft(0, 0);
       height = 0;
@@ -315,8 +314,8 @@ struct pillars {
       calculateCorners_topLeft();
     }
 
-    void draw() {
-      /*switch (eraseMethod) {
+    void draw(int eraseMethod) {
+      switch (eraseMethod) {
         case do_not_erase:
           break;
 
@@ -325,38 +324,163 @@ struct pillars {
           break;
 
         case erase_square:
-          tft.drawRect(xPos, previous_position, 15, 15, ST7735_BLACK);
+          tft.drawRect(previous_position.x, previous_position.y, PILLAR_WIDTH, height, ST7735_BLACK);
           break;
 
         default:
           break; 
-        }*/
+        }
       tft.fillRect(corner.topLeft.x, corner.topLeft.y, PILLAR_WIDTH, height, ST7735_GREEN);
     }
     
+    void shift_left() {
+      previous_position.x = corner.topLeft.x;
+      previous_position.y = corner.topLeft.y;
 
-  };
+      --corner.topLeft.x;
+      --corner.topRight.x;
+      --corner.bottomLeft.x;
+      --corner.bottomRight.x;
+    }
+
+  }; // single_pillar
+
+  struct two_pillars {
+    single_pillar lower;
+    single_pillar upper;
+    bool score_counted; // If true, the player already got a Score for passing this pillars
+
+    two_pillars () {
+      score_counted = false;
+      this->initialize();
+    }
+
+    void initialize() {
+      // pull random numbers
+      // random(minHeight, maxHeight);
+      int nHeight;
+      int nDistance;
+      int border_size = 15;
+      int x_coordinate = 159;
+
+      do {
+      randomSeed(analogRead(5));
+      nHeight    = random(border_size, 90);
+      nDistance  = random(50, 80);
+      }
+      while (nHeight + nDistance > 128 - border_size); // shuffle again if height+distance is too large
+
+      lower.make_pillar_bottom(nHeight, x_coordinate);
+      upper.make_pillar_top(nHeight, x_coordinate, nDistance);
+    }
+
+    void draw(int eraseMethod) {
+      lower.draw(eraseMethod);
+      upper.draw(eraseMethod);
+    }
+
+    void shift_left() {
+      lower.shift_left();
+      upper.shift_left();
+    }
+
+    bool check_if_outofbounds() {
+      // Returns true if invisible
+      if (lower.corner.topRight.x < 0) {
+        return true;
+      }
+      else return false;
+    }
+
+    bool check_for_distance_between_pillars() {
+      if (lower.corner.topRight.x < 160 - DISTANCE_BETWEEN_PILLARS) {
+        return true;
+      }
+      else return false;
+    }
+
+    // Bird-Pillar collision is determined in gameloop, because bird and pillar do not have access to each other
+    // Similarly, the Score is also determined in gameloop
+
+    void set_score_counted(bool input) {
+      this->score_counted = input;
+    }
+
+  }; // two_pillars
+
+  // This class manages all pillars in the game. It spawns and destroys pillars as needed. Pillars should only be moved via this class
+
+  std::vector<two_pillars *> pillarvector;
+
+  void initialize_vector() {
+    pillarvector.push_back(new two_pillars);
+  }
+
+  void clear_vector() {
+    for (auto i : pillarvector) {
+      delete i;
+    }
+    pillarvector.clear();
+  }
+
+  void shift_left() {
+    for (auto i : pillarvector) {
+      i->shift_left();
+    }
+  }
+
+  void check_if_front_is_outofbounds() {
+    if (pillarvector.front()->check_if_outofbounds()) {
+      delete pillarvector.front();
+      pillarvector.erase(pillarvector.begin());
+    }
+  }
+
+  void check_if_new_pillar_is_needed() {
+    if (pillarvector.back()->check_for_distance_between_pillars()) {
+      pillarvector.push_back(new two_pillars);
+      pillarvector.back()->initialize();
+    }
+  }
+
+  void shift_left_and_check() {
+    shift_left();
+    check_if_front_is_outofbounds();
+    check_if_new_pillar_is_needed();
+  }
+
+  void draw_all_pillars(int eraseMethod) {
+    for (auto i : pillarvector) {
+      i->draw(eraseMethod);
+    }
+  }
 
   
-  
-};
+}; // pillars
 
 struct gameloop {
   bird_class * bird;
   buttons_class * buttonsobj;
+  pillars * pillarsobj;
+
   bool runLoop;
   bool pause;
+
+  int score;
 
   gameloop() {
     bird = new bird_class;
     buttonsobj = new buttons_class;
+    pillarsobj = new pillars;
     this->runLoop = false;
     this->pause = false;
+    this->score = 0;
   }
 
   ~gameloop() {
     delete bird;
     delete buttonsobj;
+    delete pillarsobj;
   }
 
   void loop() {
@@ -364,28 +488,45 @@ struct gameloop {
     unsigned long nDelay = 20;
 
     tft.fillScreen(ST7735_BLACK);
+    pillarsobj->initialize_vector();
 
     while (runLoop) {
       buttonsobj->refreshAll();
-      if (buttonsobj->D.isOn()) this->switchPause();
+      if (buttonsobj->D.isOn()) {
+        this->bird->reset();
+        this->switchPause();
+        }
 
       while (!pause) {
         if (millis() >= oldTimer + nDelay) {
-          this->bird->checkBoundaries();
           buttonsobj->refreshAll();
-          //this->onScreenDebug();
 
-          if (buttonsobj->A.isOn()) this->bird->reset();
-          if (buttonsobj->B.isOn()) this->bird->flap();
+          if (buttonsobj->A.isOn()) {
+            this->bird->reset();
+          }
+          if (buttonsobj->B.isOn()) {this->bird->flap();}
           if (buttonsobj->C.isOn()) {
             this->bird->applyPhysics();
-            this->bird->checkBoundaries();
             this->bird->draw(erase_screen); 
           }
-          if (buttonsobj->D.isOn()) this->switchPause();
+          if (buttonsobj->D.isOn()) {this->switchPause();}
 
           this->bird->applyPhysics();
           this->bird->draw(erase_square); 
+
+          this->pillarsobj->shift_left_and_check();
+          this->pillarsobj->draw_all_pillars(erase_square);
+
+          this->check_score();
+          this->print_score();
+
+          if (this->check_bird_pillar_collision()) {
+            this->switchPause();
+          }
+
+          if (this->bird->corner.bottomLeft.y >= 128) {
+            this->switchPause();
+          }
 
           oldTimer = millis();
         }
@@ -412,13 +553,66 @@ struct gameloop {
     else if (this->pause == true)  { this->pause = false; }
   }
 
+  bool check_bird_pillar_collision() {
+
+    for (auto i : pillarsobj->pillarvector) {
+      if (
+            // X-Axis
+          ( (bird->corner.topRight.x > i->upper.corner.topLeft.x && bird->corner.topRight.x < i->upper.corner.topRight.x)
+            ||
+            (bird->corner.topLeft.x > i->upper.corner.topLeft.x && bird->corner.topLeft.x < i->upper.corner.topRight.x) )
+
+            &&
+
+            // Y-Axis
+          ( (bird->corner.topRight.y > i->upper.corner.topLeft.y && bird->corner.topRight.y < i->upper.corner.bottomLeft.y) // Upper Pillar
+            ||
+            (bird->corner.bottomRight.y > i->lower.corner.topLeft.y && bird->corner.bottomRight.y < i->lower.corner.bottomLeft.y) ) // Lower Pillar
+
+        ) {
+          return true;
+        } // if
+    } // for
+    return false;
+  }
+
+  void check_score() {
+    if ((pillarsobj->pillarvector.front()->lower.corner.topRight.x < bird->corner.topLeft.x) && pillarsobj->pillarvector.front()->score_counted == false) {
+      score++;
+      //pillarsobj->pillarvector.front()->score_counted == true; // Somehow doesnt work
+      pillarsobj->pillarvector.front()->set_score_counted(true);
+    }
+  }
+
+  void print_score() {
+    tft.setCursor(0, 0);
+    tft.setTextColor(ST7735_WHITE, ST7735_BLACK);
+    tft.setTextSize(1);
+    tft.setTextWrap(true);
+
+    tft.print("Score: ");
+    tft.print(this->score);
+  }
+
+  void press_button_screen() {
+    
+  }
+
+  void game_over_screen() {
+
+  }
+
+
+
 };
 
 //buttons_class buttonsobj;
 //bird b;
 gameloop gameloop1;
-pillars::single_pillar sp_b;
-pillars::single_pillar sp_t;
+//pillars::single_pillar sp_b;
+//pillars::single_pillar sp_t;
+//pillars::two_pillars tp1;
+//pillars p1;
 
 void setup() {
   // Setup Serial Communication
@@ -438,19 +632,14 @@ void setup() {
 
   tft.fillScreen(ST7735_BLACK);
   
-  //tft.drawRect(90, 60, 20, -20, ST7735_GREEN);
+  //tft.drawRect(90, 60, 20, 20, ST7735_GREEN);
   //b.setButtonsRef(buttonsobj);
-  //gameloop1.setLoop(true);
-  //sp1.make_pillar(60, 100, bottom, 0);
-  //sp1.draw();
-  sp_b.make_pillar_bottom(20, 80);
-  sp_t.make_pillar_top(20, 80, 40);
-  sp_b.draw();
-  sp_t.draw();
+  gameloop1.setLoop(true);
+  //p1.initialize_vector();
 }
 
 void loop() {
- 
-  //gameloop1.loop();
+
+  gameloop1.loop();
 
   }
