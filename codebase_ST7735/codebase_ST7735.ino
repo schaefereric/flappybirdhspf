@@ -54,8 +54,8 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_PIN_CS, TFT_PIN_DC, TFT_PIN_RST);     
 #define erase_square 2
 
 enum pillar_directions {bottom, top};
-#define PILLAR_WIDTH 20
-#define DISTANCE_BETWEEN_PILLARS 40
+#define PILLAR_WIDTH 23
+#define DISTANCE_BETWEEN_PILLARS 37
 #define BIRD_SIZE 15
 
 
@@ -111,21 +111,15 @@ struct buttons_class {
 
   button A;
   button B;
-  button C;
-  button D;
 
   buttons_class () {
     this->A.pin = buttonpinA;
     this->B.pin = buttonpinB;
-    this->C.pin = buttonpinC;
-    this->D.pin = buttonpinD;
   }
 
   void refreshAll() {
     this->A.refresh();
     this->B.refresh();
-    this->C.refresh();
-    this->D.refresh();
   }
 
 };
@@ -490,49 +484,52 @@ struct gameloop {
     tft.fillScreen(ST7735_BLACK);
     pillarsobj->initialize_vector();
 
-    while (runLoop) {
-      buttonsobj->refreshAll();
-      if (buttonsobj->D.isOn()) {
-        this->bird->reset();
-        this->switchPause();
-        }
 
-      while (!pause) {
+    while (!pause) {
+      this->press_button_screen();
+      this->reset_game();
+      tft.fillScreen(ST7735_BLACK);
+      this->runLoop = true;
+
+      while (runLoop) {
         if (millis() >= oldTimer + nDelay) {
           buttonsobj->refreshAll();
 
           if (buttonsobj->A.isOn()) {
-            this->bird->reset();
+            this->bird->flap();
           }
-          if (buttonsobj->B.isOn()) {this->bird->flap();}
-          if (buttonsobj->C.isOn()) {
-            this->bird->applyPhysics();
-            this->bird->draw(erase_screen); 
-          }
-          if (buttonsobj->D.isOn()) {this->switchPause();}
 
           this->bird->applyPhysics();
-          this->bird->draw(erase_square); 
-
           this->pillarsobj->shift_left_and_check();
+
+          this->bird->draw(erase_square);
           this->pillarsobj->draw_all_pillars(erase_square);
 
           this->check_score();
-          this->print_score();
+          this->print_score(); 
 
           if (this->check_bird_pillar_collision()) {
-            this->switchPause();
+            this->game_over_screen();
           }
 
           if (this->bird->corner.bottomLeft.y >= 128) {
-            this->switchPause();
+            this->game_over_screen();
           }
 
           oldTimer = millis();
         }
+      }
+    }
 
-      } // while (!pause)
-    } // while (runLoop)
+  }
+
+  void reset_game() {
+    this->runLoop = true;
+    this->pause = false;
+    this->score = 0;
+    this->bird->reset();
+    this->pillarsobj->clear_vector();
+    this->pillarsobj->initialize_vector();
   }
 
   void setLoop(bool activateLoop) {
@@ -595,31 +592,141 @@ struct gameloop {
   }
 
   void press_button_screen() {
+    tft.fillScreen(ST7735_BLACK);
+
+    // Flappy Bird Title
+    tft.setCursor(29, 17);
+    tft.setTextColor(ST7735_WHITE, ST7735_BLACK);
+    tft.setTextSize(1);
+    tft.setTextWrap(false);
+
+    tft.print("Flappy Bird HSPF");
+
+    // White Rectangle
+    int wWidth = 160;
+    int wHeight = 50;
+    int wTopLeft_x = (160 - wWidth) / 2;
+    int wTopLeft_y = (128 - wHeight) / 2;
+
+    tft.fillRoundRect(wTopLeft_x, wTopLeft_y, wWidth, wHeight, 5, ST7735_WHITE);
+
+    // Press Button Text
+    int tTopLeft_x = 9;
+    int tTopLeft_y = 56;
+
+    tft.setCursor(tTopLeft_x, tTopLeft_y);
+    tft.setTextColor(ST7735_BLACK, ST7735_WHITE);
+    tft.setTextSize(2);
+    tft.setTextWrap(false);
+
+    tft.print("Press Button");
     
+    // Blinking Border & Button Polling
+    int rect_distance = 4;
+    int rTopLeft_x = wTopLeft_x + 1;
+    int rTopLeft_y = wTopLeft_y + 1;
+    int rWidth = wWidth - 2;
+    int rHeight = wHeight - 2;
+
+    unsigned long timer = millis();
+    unsigned long delay = 500;
+    int lState = 0;
+    while (1) {
+      buttonsobj->refreshAll();
+      if (buttonsobj->A.isOn()) {
+        return;
+      }
+
+      if (millis() >= timer + delay) {
+        if (lState == 0) {
+          for (int i = 0; i < rect_distance; i++) {
+            tft.drawRoundRect(rTopLeft_x + i, rTopLeft_y + i, rWidth - (i * 2), rHeight - (i * 2), 5, ST7735_BLACK);
+            lState = 1;
+          }
+        }
+        else if (lState == 1) {
+          for (int i = 0; i < rect_distance; i++) {
+            tft.drawRoundRect(rTopLeft_x + i, rTopLeft_y + i, rWidth - (i * 2), rHeight - (i * 2), 5, ST7735_WHITE);
+            lState = 0;
+          }
+        }
+
+        timer = millis();
+      }
+
+    }
+
   }
 
   void game_over_screen() {
+    this->runLoop = false;
+
+    // Blue Rectangle
+    int wWidth = 140;
+    int wHeight = 115;
+    int wTopLeft_x = (160 - wWidth) / 2;
+    int wTopLeft_y = (128 - wHeight) / 2;
+
+    tft.fillRect(wTopLeft_x, wTopLeft_y, wWidth, wHeight, ST7735_BLUE);
+
+    // White Border
+    int rect_size = 17;
+    int initial_distance = 5;
+
+    for (int i = 0; i <= rect_size; i++) {
+      tft.drawRect( wTopLeft_x + initial_distance + i, 
+                    wTopLeft_y + initial_distance + i, 
+                    wWidth - (initial_distance * 2) - (i * 2), 
+                    wHeight - (initial_distance * 2) - (i * 2), 
+                    ST7735_WHITE);
+    }
+
+    // Game Over Text
+    tft.setCursor(50, 16);
+    tft.setTextColor(ST7735_BLUE, ST7735_WHITE);
+    tft.setTextSize(1);
+    tft.setTextWrap(false);
+
+    tft.print("Game Over!");
+
+    // Score Text
+    tft.setCursor(37, 42);
+    tft.setTextColor(ST7735_WHITE, ST7735_BLUE);
+    tft.setTextSize(1);
+    tft.setTextWrap(false);
+
+    tft.print("Your Score: ");
+    tft.print(this->score);
+
+    // Press Button Text
+    tft.setCursor(45, 70);
+    tft.setTextColor(ST7735_WHITE, ST7735_BLUE);
+    tft.setTextSize(1);
+    tft.setTextWrap(true);
+
+    tft.print("Press Button");
+
+    tft.setCursor(45, 80);
+    tft.setTextColor(ST7735_WHITE, ST7735_BLUE);
+    tft.setTextSize(1);
+    tft.setTextWrap(true);
+
+    tft.print("to try again");
+
+    while (1) {
+      buttonsobj->refreshAll();
+      if (buttonsobj->A.isOn()) {
+        return;
+      }
+    }
 
   }
 
-
-
 };
 
-//buttons_class buttonsobj;
-//bird b;
 gameloop gameloop1;
-//pillars::single_pillar sp_b;
-//pillars::single_pillar sp_t;
-//pillars::two_pillars tp1;
-//pillars p1;
 
 void setup() {
-  // Setup Serial Communication
-  Serial.begin(9600);
-  Serial.println();
-  Serial.println("setup");
-
   // Initialize Screen
   tft.initR(INITR_BLACKTAB); 
   tft.setRotation(1);      // equivalent to adafruit doc example orientation
@@ -627,15 +734,10 @@ void setup() {
   // Initialize Buttons
   pinMode(buttonpinA, INPUT_PULLUP);
   pinMode(buttonpinB, INPUT_PULLUP);
-  pinMode(buttonpinC, INPUT_PULLUP);
-  pinMode(buttonpinD, INPUT_PULLUP);
 
   tft.fillScreen(ST7735_BLACK);
   
-  //tft.drawRect(90, 60, 20, 20, ST7735_GREEN);
-  //b.setButtonsRef(buttonsobj);
   gameloop1.setLoop(true);
-  //p1.initialize_vector();
 }
 
 void loop() {
