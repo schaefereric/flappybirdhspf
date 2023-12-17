@@ -1,0 +1,22 @@
+bool check_bird_pillar_collision() {
+
+    for (auto i : pillarsobj->pillarvector) {
+      if (
+            // X-Axis
+          ( (bird->corner.topRight.x > i->upper.corner.topLeft.x && bird->corner.topRight.x < i->upper.corner.topRight.x)
+            ||
+            (bird->corner.topLeft.x > i->upper.corner.topLeft.x && bird->corner.topLeft.x < i->upper.corner.topRight.x) )
+
+            &&
+
+            // Y-Axis
+          ( (bird->corner.topRight.y > i->upper.corner.topLeft.y && bird->corner.topRight.y < i->upper.corner.topRight.y) // Upper Pillar
+            ||
+            (bird->corner.bottomRight.y > i->lower.corner.topLeft.y && bird->corner.bottomRight.y < i->lower.corner.bottomLeft.y) ) // Lower Pillar
+
+        ) {
+          return true;
+        } // if
+    } // for
+    return false;
+  }
