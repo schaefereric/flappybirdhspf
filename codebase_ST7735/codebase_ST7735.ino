@@ -433,7 +433,6 @@ struct pillars {
   void check_if_new_pillar_is_needed() {
     if (pillarvector.back()->check_for_distance_between_pillars()) {
       pillarvector.push_back(new two_pillars);
-      pillarvector.back()->initialize();
     }
   }
 
