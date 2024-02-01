@@ -1,7 +1,13 @@
-/* 128x160
+/* 128x160 Display Resolution
 
-Pinnung
- *  Display (Pin) - Arduino Nano
+* ---------------------------------------------------------------------------------- *
+*                                    WARNING!                                        *
+* This code is extremely messy and may contain radioactive levels of spaghetti code! *
+*                            Proceed at your own risk!                               *
+* ---------------------------------------------------------------------------------- *
+
+Pins
+ *  Display (Pin) - Arduino
  *  GND  (1) - GND  
  *  VCC  (2) - 5V
  *  SCK  (3) - D13
@@ -10,13 +16,18 @@ Pinnung
  *  RS   (6) - D9
  *  CS   (7) - D10
  *  LEDA (8) - 3.3V
+ *
+ *  Since we are using the "reduced" Adafruit_ST7735 constructor with less pins (because it seemingly runs faster), not all pins are needed
  *  
- *  LEDA kann auch an 5V doch dann wird das Display sehr schnell sehr heiß - was ich nicht für optimal halte.
- *  Beim Betrieb mit 3.3V ist das Dispklay nur minimal dunkler und bleibt kalt.
+ *  According to display datasheet, LEDA should be 5V. Due to the display heating up, we recommend using 3.3V instead.
+ *  The brightness is still okay and the display wont heat up
+ *
+ * IMPORTANT: The voltage on all signal lines needs to be 3.3V, NOT 5V !
+ * Otherwise, strange artifacts will appear on the screen
+ * Different ST7735 displays by different manufacturers may behave differently
 
-https://learn.adafruit.com/adafruit-gfx-graphics-library/coordinate-system-and-units
-https://www.greth.me/arduino-nano-mit-1-77-zoll-spi-tft-display-st7735-chipsatz/
 
+Color Defines in Library
 #define ST7735_BLACK ST77XX_BLACK
 #define ST7735_WHITE ST77XX_WHITE
 #define ST7735_RED ST77XX_RED
@@ -29,14 +40,14 @@ https://www.greth.me/arduino-nano-mit-1-77-zoll-spi-tft-display-st7735-chipsatz/
  */
 
 
-#define TFT_PIN_CS   10 // Arduino-Pin an Display CS   
-#define TFT_PIN_DC   9  // Arduino-Pin an 
-#define TFT_PIN_RST  8  // Arduino Reset-Pin
+#define TFT_PIN_CS   10 // Display CS Pin
+#define TFT_PIN_DC   9  // Display RS Pin (?)
+#define TFT_PIN_RST  8  // Display Reset Pin
 
 #define TFT_MOSI 11  // Data out
 #define TFT_SCLK 13  // Clock out
 
-#include <SPI.h>             // SPI für die Kommunikation
+#include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <ArduinoSTL.h>
@@ -53,7 +64,7 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_PIN_CS, TFT_PIN_DC, TFT_PIN_RST);     
 #define erase_screen 1
 #define erase_square 2
 
-enum pillar_directions {bottom, top};
+enum pillar_directions {bottom, top}; // Deprecated. And could also be optimized to a macro
 #define PILLAR_WIDTH 23
 #define DISTANCE_BETWEEN_PILLARS 37
 #define BIRD_SIZE 15
@@ -550,6 +561,10 @@ struct gameloop {
   }
 
   bool check_bird_pillar_collision() {
+
+    // Terrible, terrible, terrible solution. This massive for-loop is significantly hurting the games performance.
+    // TODO: because of the birds fixed position, theres only one pillar-pair which the bird is able to hit.
+    // This is usually the second pillar in the pillar-vector, BUT it is the first pillar when the game is started
 
     for (auto i : pillarsobj->pillarvector) {
       if (
